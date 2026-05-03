@@ -8,12 +8,12 @@
 // Message protocol:
 //   main -> worker: { type: 'init' }
 //                   { type: 'run', id, plannerName, shapeLibUrl, interpSteps,
-//                                  gamma, numWaypoints }
+//                                  gamma, waypointsJson }
 //
 //   worker -> main: { type: 'stage', step, title }
 //                   { type: 'stageProgress', step, fraction }
 //                   { type: 'stageDone', step }
-//                   { type: 'ready', defaultCurve, defaultRobot }
+//                   { type: 'ready', defaultRobot }
 //                   { type: 'stdout', text }       // single line of Python stdout
 //                   { type: 'log',    text }       // worker-level status line
 //                   { type: 'response', id, payload }
@@ -49,7 +49,6 @@ if "/srcroot" not in sys.path:
     sys.path.insert(0, "/srcroot")
 
 from src.MasterClass import GeneralPathFollower
-from src.PathGenerators.PathGenerator import TaskGenerator
 from src.RobotModels.ConstantCurvatureModel import ConstantCurvature
 from src.MotionPlanners.OptimizationBased.DirectOptimization import DirectOptimization
 
@@ -60,15 +59,6 @@ ROBOT_KWARGS = dict(
     tendon_offset=[0.2, 0.2, 0.2],
     points_resolution=0.05,
 )
-
-
-def _default_curve(generator, num_waypoints):
-    return generator.generate_curved_path(
-        np.array([0, 0, 0]),
-        np.array([2, 0, 1.3]),
-        np.array([0, 0, 1.6]),
-        num_waypoints=num_waypoints,
-    )
 
 
 def _serialize_history(history):
@@ -86,12 +76,12 @@ def _serialize_history(history):
 
 def run_demo(planner_name: str,
              shape_lib_path: str,
+             waypoints_json: str,
              interp_steps: int = 20,
-             num_waypoints: int = 10,
              gamma: float = 2.5) -> dict:
     robot = ConstantCurvature(**ROBOT_KWARGS)
-    generator = TaskGenerator(robot)
-    waypoints = _default_curve(generator, num_waypoints)
+    waypoints = np.array(json.loads(waypoints_json))
+    num_waypoints = len(waypoints)
 
     general_follower = GeneralPathFollower(robot)
     samplers = general_follower.get_sampling_methods_by_name([planner_name])
@@ -154,11 +144,6 @@ def run_demo(planner_name: str,
         "waypoints":  waypoints.tolist(),
         "history":    _serialize_history(interp_history),
     }
-
-
-def default_curve_only(num_waypoints: int = 10):
-    robot = ConstantCurvature(**ROBOT_KWARGS)
-    return _default_curve(TaskGenerator(robot), num_waypoints).tolist()
 
 
 def default_robot_state():
@@ -236,13 +221,10 @@ async function init() {
   pyodide.unpackArchive(bundleBytes, "zip", { extractDir: "/srcroot" });
   notify("stageDone", { step: "bundle" });
 
-  // Stage 4: import planner + grab default curve / robot pose
+  // Stage 4: import planner + grab the robot's default starting pose
+  // (the target curve is now computed entirely on the main thread).
   notify("stage", { step: "ready", title: "Importing planner modules…" });
   pyodide.runPython(PYTHON_HELPERS);
-
-  const curveProxy = pyodide.globals.get("default_curve_only")();
-  const defaultCurve = curveProxy.toJs();
-  curveProxy.destroy();
 
   const robotProxy = pyodide.globals.get("default_robot_state")();
   const defaultRobot = robotProxy.toJs({ dict_converter: Object.fromEntries });
@@ -250,7 +232,7 @@ async function init() {
 
   notify("stageDone", { step: "ready" });
   workerLog("planner ready");
-  notify("ready", { defaultCurve, defaultRobot });
+  notify("ready", { defaultRobot });
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +253,7 @@ async function ensureShapeLib(url) {
 }
 
 async function runPlanner(params) {
-  const { plannerName, shapeLibUrl, interpSteps, gamma, numWaypoints } = params;
+  const { plannerName, shapeLibUrl, interpSteps, gamma, waypointsJson } = params;
 
   let fsPath = "";
   if (plannerName !== "Direct Optimization") {
@@ -282,8 +264,8 @@ async function runPlanner(params) {
   const pyResult = runDemo.callKwargs({
     planner_name:   plannerName,
     shape_lib_path: fsPath,
+    waypoints_json: waypointsJson,
     interp_steps:   interpSteps,
-    num_waypoints:  numWaypoints,
     gamma:          gamma,
   });
   const result = pyResult.toJs({ dict_converter: Object.fromEntries });

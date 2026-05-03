@@ -70,7 +70,6 @@ class SamplingNoCluster(GeneralMotionPlanner):
             if verbose:
                 print(f"\nStep {len(history) + 1}: Target waypoint {waypoint_index + 1}/{len(waypoints)}")
                 print(f"  Target position: {target_tip}")
-                print(f"  Active waypoints: {len(active_waypoints)}")
 
             # Evaluate all shapes with base stability
             best_score = float('inf')
@@ -134,8 +133,6 @@ class SamplingNoCluster(GeneralMotionPlanner):
             # Check if we've reached the target
             if tip_error < self.activation_radius:
                 waypoint_index += 1
-                if verbose:
-                    print(f"  ✓ Advanced to next waypoint")
             
             # Record step in history
             step_time = time.time() - step_start_time
@@ -167,10 +164,9 @@ class SamplingNoCluster(GeneralMotionPlanner):
 
             
             if verbose:
-                print(f"  Final tip error: {tip_error:.6f}")
-                print(f"  Max deviation from waypoints: {max_deviation:.6f}")
                 print(f"  Total step time: {step_time:.2f}s")
-        
 
-        
+
+        # Paper §III-B-2: fix up the first two waypoints by reusing w3's shape.
+        history = self._fixup_initial_waypoints(history, waypoints)
         return history

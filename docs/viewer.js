@@ -32,7 +32,7 @@ const COLORS = {
 };
 
 const ROBOT_TUBE_RADIUS     = 0.04;  // robot backbone tube radius (world units)
-const TARGET_TUBE_RADIUS    = 0.018;
+const TARGET_TUBE_RADIUS    = 0.028;
 const SE3_AXIS_LENGTH       = 0.45;  // base-frame arrow length
 const SE3_AXIS_SHAFT_RADIUS = 0.012;
 const PLAYBACK_FPS          = 30;

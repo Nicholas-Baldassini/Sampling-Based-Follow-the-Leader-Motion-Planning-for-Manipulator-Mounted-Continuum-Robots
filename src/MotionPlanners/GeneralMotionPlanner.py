@@ -536,6 +536,44 @@ class GeneralMotionPlanner:
 
     
     
+    def _fixup_initial_waypoints(self, history: List[Dict], waypoints: np.ndarray) -> List[Dict]:
+
+        if len(history) < 3 or len(waypoints) < 3:
+            return history
+
+        third = history[2]
+        third_clark = np.asarray(third["clark_coords"]).copy()
+        third_rot   = np.asarray(third["base_orientation"]).copy()
+        shape_local = np.asarray(third["selected_shape_info"]["shape_points"])
+        # Same offset formula as evaluate_shape: tip_world = base_pos + base_rot @ tip_local
+        # so base_pos = target_tip + base_rot @ (shape_base - shape_tip).
+        robot_base_offset = shape_local[0] - shape_local[-1]
+
+        for i in (0, 1):
+            target = np.asarray(waypoints[i])
+            new_base_pos = target + third_rot @ robot_base_offset
+
+            endpoints, shape_points, _ = self.robot.forward_kinematics_from_base(
+                third_clark, new_base_pos, third_rot
+            )
+
+            new_base_transform = np.eye(4)
+            new_base_transform[:3, :3] = third_rot
+            new_base_transform[:3, 3]  = new_base_pos
+
+            h = history[i]
+            h["clark_coords"]        = third_clark.copy()
+            h["base_position"]       = new_base_pos.copy()
+            h["base_orientation"]    = third_rot.copy()
+            h["base_transform"]      = new_base_transform
+            h["shape_points"]        = shape_points
+            h["endpoints"]           = endpoints
+            h["actual_tip"]          = endpoints[-1].copy()
+            h["tip_error"]           = float(np.linalg.norm(endpoints[-1] - target))
+            h["selected_shape_info"] = third["selected_shape_info"]
+
+        return history
+
     def follow_path(self, waypoints: np.ndarray, verbose: bool = True, base_constraint: ConvexShape = None ) -> List[Dict]:
        raise NotImplementedError("This method should be implemented in subclasses.")
     

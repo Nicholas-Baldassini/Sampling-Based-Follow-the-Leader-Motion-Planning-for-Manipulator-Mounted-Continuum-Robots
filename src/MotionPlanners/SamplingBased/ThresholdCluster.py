@@ -242,4 +242,5 @@ class ThresholdCluster(GeneralMotionPlanner):
                 print(f"\nStep {len(history)}: Target waypoint {waypoint_index}/{len(waypoints)}")
                 print(f"  Total step time: {step_time:.4f}s")
 
+        history = self._fixup_initial_waypoints(history, waypoints)
         return history

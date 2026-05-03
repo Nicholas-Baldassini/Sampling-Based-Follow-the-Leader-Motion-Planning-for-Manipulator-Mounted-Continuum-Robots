@@ -24,16 +24,20 @@
       <h1>Sampling-Based Follow-the-Leader Motion Planning<br />for Manipulator-Mounted Continuum Robots</h1>
       <p class="authors">
         <a href="https://crl.utm.utoronto.ca/">Chengnan Shentu</a>,
-        <a href="https://crl.utm.utoronto.ca/">Nicholas Baldassini</a>,
+        <a href="https://www.linkedin.com/in/nicholas-baldassini-6584821b6/">Nicholas Baldassini</a>,
         <a href="https://crl.utm.utoronto.ca/">Oluwagbotemi&nbsp;D.&nbsp;Iseoluwa</a>,
         <a href="https://crl.utm.utoronto.ca/">Radian Gondokaryono</a>,
         <a href="https://crl.utm.utoronto.ca/">Jessica Burgner-Kahrs</a>
       </p>
-      <p class="venue">RSS&nbsp;2026</p>
       <p class="affiliation">
         <a class="affiliation__link" href="https://crl.utm.utoronto.ca/">
           <img src="assets/crlab_logo.png" alt="" class="affiliation__logo" />
           <span>Continuum Robotics Lab &middot; University of Toronto</span>
+        </a>
+        <a class="affiliation__link" href="https://roboticsconference.org/"
+           title="Robotics: Science and Systems · 13–17 July 2026 · Sydney, Australia">
+          <img src="assets/RSS2026-logo.png" alt="" class="affiliation__logo" />
+          <span>RSS&nbsp;2026 &middot; Sydney, Australia</span>
         </a>
       </p>
       <nav class="paper-links">
@@ -86,8 +90,7 @@
         <span class="callout__icon" aria-hidden="true">⚠</span>
         <div>
           <strong>Heads up:</strong> Pyodide is single-threaded WebAssembly Python, so timings
-          here are typically 2&ndash;3&times; slower than running the same code natively.
-          The deviation metrics below are identical to a native run.
+          here are typically 3&ndash;5&times; slower than running the same code natively.
         </div>
       </div>
 
@@ -115,8 +118,58 @@
       <div class="viewer-block">
         <div class="viewer-block__header">
           <h3>1. Target path</h3>
-          <span class="viewer-block__hint">Default Bezier from <code>run_example.py</code> · drag to orbit (editable view coming soon)</span>
+          <span class="viewer-block__hint">Pick a shape, drag the sliders. Edits update both viewers live and reset any prior plan.</span>
         </div>
+
+        <div class="path-controls">
+          <div class="path-controls__head">
+            <label class="control">
+              <span>Shape</span>
+              <select id="path-shape">
+                <option value="s">S shape</option>
+                <option value="c">C shape</option>
+              </select>
+            </label>
+            <button id="path-restore" type="button" class="btn btn--ghost">Restore defaults</button>
+          </div>
+
+          <!-- S shape sliders: control points p1 and p2 (start + end fixed) -->
+          <div class="path-sliders" id="path-sliders-s">
+            <label class="control">
+              <span>p₁ X <span class="value-readout" data-readout="s-c1x">—</span></span>
+              <input id="s-c1x" type="range" min="-1" max="0.4" step="0.05" value="-0.575" />
+            </label>
+            <label class="control">
+              <span>p₁ Z <span class="value-readout" data-readout="s-c1z">—</span></span>
+              <input id="s-c1z" type="range" min="-1" max="1.2" step="0.05" value="0.35" />
+            </label>
+            <label class="control">
+              <span>p₂ X <span class="value-readout" data-readout="s-c2x">—</span></span>
+              <input id="s-c2x" type="range" min="-2.3" max="0.7" step="0.05" value="-2.05" />
+            </label>
+            <label class="control">
+              <span>p₂ Z <span class="value-readout" data-readout="s-c2z">—</span></span>
+              <input id="s-c2z" type="range" min="-1" max="2" step="0.05" value="-0.55" />
+            </label>
+          </div>
+
+          <!-- C shape sliders: end position + radial angle -->
+          <div class="path-sliders" id="path-sliders-c" hidden>
+            <label class="control">
+              <span>End X <span class="value-readout" data-readout="c-ex">—</span></span>
+              <input id="c-ex" type="range" min="-2" max="2" step="0.05" value="1" />
+            </label>
+            <label class="control">
+              <span>End Z <span class="value-readout" data-readout="c-ez">—</span></span>
+              <input id="c-ez" type="range" min="0" max="2" step="0.05" value="1.5" />
+            </label>
+            <label class="control">
+              <span>Radial angle <span class="value-readout" data-readout="c-angle">—</span>°</span>
+              <input id="c-angle" type="range" min="-180" max="180" step="2" value="45" />
+            </label>
+          </div>
+        </div>
+
         <div id="path-viewer" class="viewer viewer--small" aria-label="Target path viewer"></div>
       </div>
 
@@ -133,16 +186,18 @@
           <label class="control">
             <span>Planner</span>
             <select id="planner-select" disabled>
+              <option value="No Cluster/Linear Sampling" selected>Linear search (No cluster)</option>
               <option value="Threshold Cluster">Threshold Cluster</option>
-              <option value="No Cluster/Linear Sampling">Linear search (No cluster)</option>
               <option value="Direct Optimization">Direct Optimization</option>
             </select>
           </label>
           <label class="control">
             <span>Shape library</span>
             <select id="shape-lib-select" disabled>
-              <option value="assets/shape_lib_5k.json">5,000 shapes (~12 MB)</option>
-              <option value="assets/shape_lib_10k.json">10,000 shapes (~23 MB)</option>
+              <option value="assets/shape_lib_20k.json">20,000 shapes</option>
+              <option value="assets/shape_lib_10k.json" selected>10,000 shapes</option>
+              <option value="assets/shape_lib_5k.json">5,000 shapes</option>
+              <option value="assets/shape_lib_1k.json">1,000 shapes</option>
             </select>
           </label>
           <label class="control" id="gamma-control">
@@ -151,7 +206,7 @@
           </label>
           <label class="control">
             <span>Interpolation steps / waypoint</span>
-            <input id="interp-steps" type="number" min="1" max="80" value="20" disabled />
+            <input id="interp-steps" type="number" min="1" max="80" value="40" disabled />
           </label>
           <button id="run-btn" type="button" disabled>Run planner</button>
         </div>
@@ -227,10 +282,6 @@
         </div>
       </div>
 
-      <details class="runtime-log-wrapper">
-        <summary>Full runtime log</summary>
-        <pre id="runtime-log" class="runtime-log"></pre>
-      </details>
     </section>
 
     <!-- Toast -->

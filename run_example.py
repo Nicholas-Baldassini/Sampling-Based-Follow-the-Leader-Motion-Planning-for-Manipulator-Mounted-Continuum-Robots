@@ -31,10 +31,11 @@ from src.Visualizations.visualizer import PathVisualizer
 
 
 CURVES = {
-    "bezier": "Quadratic Bezier through a control point.",
-    "s":      "Cubic Bezier S shape between two endpoints.",
-    "c":      "C-shaped semi-circular arc between two endpoints.",
-    "robot":  "Path sampled from the robot's own forward model at a given Clarke configuration.",
+    "bezier":       "Quadratic Bezier through a control point.",
+    "s":            "Cubic Bezier S shape between two endpoints.",
+    "c":            "C-shaped semi-circular arc between two endpoints.",
+    "robot":        "Path sampled from the robot's own forward model at a given Clarke configuration.",
+    "cubic_bezier": "Cubic Bezier with user-provided control points (--p1 / --p2)",
 }
 
 PLANNERS = [
@@ -44,7 +45,8 @@ PLANNERS = [
 ]
 
 
-def _build_curve(generator: TaskGenerator, name: str, num_waypoints: int) -> np.ndarray:
+def _build_curve(generator: TaskGenerator, name: str, num_waypoints: int,
+                 p1=None, p2=None) -> np.ndarray:
     if name == "bezier":
         return generator.generate_curved_path(
             np.array([0, 0, 0]),
@@ -63,6 +65,18 @@ def _build_curve(generator: TaskGenerator, name: str, num_waypoints: int) -> np.
     if name == "robot":
         return generator.sample_from_robot_shape(
             np.array([0, 0.1, 0, 0.2, -0.3, -0.1]), num_waypoints=num_waypoints
+        )
+    if name == "cubic_bezier":
+        # Same fixed start/end as the website's S-shape editor; control
+        # points come from --p1 / --p2 (each takes three numbers: X Y Z).
+        if p1 is None or p2 is None:
+            raise ValueError("cubic_bezier requires --p1 and --p2 (each: three numbers, X Y Z).")
+        return generator.generate_cubic_bezier_path(
+            np.array([0, 0, 0]),
+            np.array([-2.3, 0, 0.8]),
+            np.array(p1, dtype=float),
+            np.array(p2, dtype=float),
+            num_waypoints=num_waypoints,
         )
     raise ValueError(f"Unknown curve: {name}. Choices: {list(CURVES)}")
 
@@ -86,12 +100,20 @@ def main():
                              "is loaded instead of generated.")
     parser.add_argument("--curve", default="bezier", choices=list(CURVES),
                         help="Target curve to follow.")
+    parser.add_argument("--p1", type=float, nargs=3, metavar=("X", "Y", "Z"), default=None,
+                        help="Cubic-Bezier first control point (only used with --curve cubic_bezier). "
+                             "Three numbers: X Y Z.")
+    parser.add_argument("--p2", type=float, nargs=3, metavar=("X", "Y", "Z"), default=None,
+                        help="Cubic-Bezier second control point (only used with --curve cubic_bezier). "
+                             "Three numbers: X Y Z.")
     parser.add_argument("--num-waypoints", type=int, default=10,
                         help="Number of waypoints on the target curve.")
     parser.add_argument("--interpolation-steps", type=int, default=40,
                         help="Number of interpolation steps between consecutive waypoints.")
     parser.add_argument("--base-stability-weight", type=float, default=0.3)
     parser.add_argument("--base-stability-weight-rot", type=float, default=0.3)
+    parser.add_argument("--similarity-threshold", type=float, default=2.5,
+                        help="γ — similarity threshold for the Threshold-Cluster planner ")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed (for reproducible library generation).")
     parser.add_argument("--no-animate", action="store_true",
@@ -116,7 +138,7 @@ def main():
     )
 
     generator = TaskGenerator(robot)
-    waypoints = _build_curve(generator, args.curve, args.num_waypoints)
+    waypoints = _build_curve(generator, args.curve, args.num_waypoints, p1=args.p1, p2=args.p2)
 
     general_follower = GeneralPathFollower(robot)
     sampler = general_follower.get_sampling_methods_by_name([args.planner])[0]
@@ -131,6 +153,10 @@ def main():
         sampler_kwargs["custom_shape_lib_path"] = args.shape_lib_path
     else:
         sampler_kwargs["num_samples"] = args.num_samples
+
+    # γ — only meaningful for Threshold Cluster; negative means "auto-estimate".
+    if args.planner == "Threshold Cluster" and args.similarity_threshold >= 0:
+        sampler_kwargs["similarity_threshold"] = args.similarity_threshold
 
     t0 = time.time()
     follower = sampler(**sampler_kwargs)
