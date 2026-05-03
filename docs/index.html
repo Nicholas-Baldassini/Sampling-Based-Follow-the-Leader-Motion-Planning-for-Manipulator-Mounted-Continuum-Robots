@@ -5,22 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sampling-Based FTL Motion Planner</title>
   <link rel="stylesheet" href="styles.css" />
-  <!-- Pyodide must be loaded before app.js so that `loadPyodide` is on `window`
-       by the time our (deferred, type="module") app script runs. -->
-  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+
+  <!-- Importmap so viewer.js can `import * as THREE from "three"`. -->
+  <!-- Pyodide is loaded inside docs/worker.js via importScripts(); the main
+       thread never imports it, which is what keeps the page responsive. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three":         "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
   <main class="container">
     <header class="paper-header">
       <h1>Sampling-Based Follow-the-Leader Motion Planning<br />for Manipulator-Mounted Continuum Robots</h1>
       <p class="authors">
-        Chengnan Shentu, Nicholas Baldassini, Oluwagbotemi&nbsp;D.&nbsp;Iseoluwa,
-        Radian Gondokaryono, Jessica Burgner-Kahrs
+        <a href="https://crl.utm.utoronto.ca/">Chengnan Shentu</a>,
+        <a href="https://crl.utm.utoronto.ca/">Nicholas Baldassini</a>,
+        <a href="https://crl.utm.utoronto.ca/">Oluwagbotemi&nbsp;D.&nbsp;Iseoluwa</a>,
+        <a href="https://crl.utm.utoronto.ca/">Radian Gondokaryono</a>,
+        <a href="https://crl.utm.utoronto.ca/">Jessica Burgner-Kahrs</a>
       </p>
       <p class="venue">RSS&nbsp;2026</p>
+      <p class="affiliation">
+        <a class="affiliation__link" href="https://crl.utm.utoronto.ca/">
+          <img src="assets/CRLab logo_dark_1_large.png" alt="" class="affiliation__logo" />
+          <span>Continuum Robotics Lab &middot; University of Toronto</span>
+        </a>
+      </p>
       <nav class="paper-links">
         <a href="#" class="btn" aria-disabled="true">Paper (PDF)</a>
-        <a href="https://github.com/" class="btn">GitHub</a>
+        <a href="https://github.com/Nicholas-Baldassini/Sampling-Based-Follow-the-Leader-Motion-Planning-for-Manipulator-Mounted-Continuum-Robots" class="btn btn--icon">
+          <img src="assets/Copilot_Icon_Black_Clearspace.png" alt="" class="btn__icon" />
+          <span>GitHub</span>
+        </a>
         <a href="#demo" class="btn">Try it</a>
       </nav>
     </header>
@@ -57,25 +78,163 @@
     <section id="demo">
       <h2>Try the planner</h2>
       <p class="lead">
-        Drag the control points to define a target curve, pick a planner, and the
-        sampling-based planner will run live in your browser via Pyodide. Three.js
-        renders the resulting motion in 3D.
+        The full sampling-based planner runs live in your browser via Pyodide. Drag in either
+        viewer to orbit the camera; scroll to zoom.
       </p>
 
-      <div id="runtime-status" class="runtime-status loading" role="status" aria-live="polite">
-        <span class="spinner" aria-hidden="true"></span>
-        <span class="runtime-status__text">Loading Python runtime…</span>
+      <div class="callout callout--warn" role="note">
+        <span class="callout__icon" aria-hidden="true">⚠</span>
+        <div>
+          <strong>Heads up:</strong> Pyodide is single-threaded WebAssembly Python, so timings
+          here are typically 2&ndash;3&times; slower than running the same code natively.
+          The deviation metrics below are identical to a native run.
+        </div>
       </div>
 
-      <div id="demo-panel" class="demo-panel" hidden>
-        <p>Demo controls and 3D viewer will appear here in the next iteration.</p>
+      <!-- ════════════════════════════════════════════════════════════
+           Loader — visible until Pyodide + packages + bundle are ready
+           ════════════════════════════════════════════════════════════ -->
+      <div id="loader" class="loader">
+        <div class="loader__head">
+          <span class="spinner spinner--accent" aria-hidden="true"></span>
+          <span class="loader__title" id="loader-title">Loading Python runtime…</span>
+          <span class="loader__pct" id="loader-pct">0%</span>
+        </div>
+        <div class="loader__bar"><div class="loader__fill" id="loader-fill"></div></div>
+        <ol class="loader__steps" id="loader-steps">
+          <li data-step="pyodide" class="loader__step">Pyodide runtime</li>
+          <li data-step="packages" class="loader__step">numpy / scipy / scikit-learn</li>
+          <li data-step="bundle"   class="loader__step">Planner source bundle</li>
+          <li data-step="ready"    class="loader__step">Wiring up</li>
+        </ol>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════
+           Path definition — static for now, will be editable later
+           ════════════════════════════════════════════════════════════ -->
+      <div class="viewer-block">
+        <div class="viewer-block__header">
+          <h3>1. Target path</h3>
+          <span class="viewer-block__hint">Default Bezier from <code>run_example.py</code> · drag to orbit (editable view coming soon)</span>
+        </div>
+        <div id="path-viewer" class="viewer viewer--small" aria-label="Target path viewer"></div>
+      </div>
+
+      <!-- ════════════════════════════════════════════════════════════
+           Planner controls + animated motion plan
+           ════════════════════════════════════════════════════════════ -->
+      <div class="viewer-block">
+        <div class="viewer-block__header">
+          <h3>2. Planner</h3>
+          <span class="viewer-block__hint">Pick a planner + library, hit run, then play back the motion below.</span>
+        </div>
+
+        <div class="demo-controls">
+          <label class="control">
+            <span>Planner</span>
+            <select id="planner-select" disabled>
+              <option value="Threshold Cluster">Threshold Cluster</option>
+              <option value="No Cluster/Linear Sampling">Linear search (No cluster)</option>
+              <option value="Direct Optimization">Direct Optimization</option>
+            </select>
+          </label>
+          <label class="control">
+            <span>Shape library</span>
+            <select id="shape-lib-select" disabled>
+              <option value="assets/shape_lib_5k.json">5,000 shapes (~12 MB)</option>
+              <option value="assets/shape_lib_10k.json">10,000 shapes (~23 MB)</option>
+            </select>
+          </label>
+          <label class="control" id="gamma-control">
+            <span>γ similarity threshold <span class="value-readout" id="gamma-value">2.50</span></span>
+            <input id="gamma-slider" type="range" min="0.1" max="5" step="0.1" value="2.5" disabled />
+          </label>
+          <label class="control">
+            <span>Interpolation steps / waypoint</span>
+            <input id="interp-steps" type="number" min="1" max="80" value="20" disabled />
+          </label>
+          <button id="run-btn" type="button" disabled>Run planner</button>
+        </div>
+
+        <!-- Live Python stdout, visible during bootstrap and during planner runs. -->
+        <div class="live-output">
+          <div class="live-output__head">
+            <span class="live-output__indicator" id="output-indicator" aria-hidden="true">
+              <span class="live-output__dot idle"></span>
+              <span class="spinner spinner--small spinner--light"></span>
+            </span>
+            <span class="live-output__label" id="output-label">Idle</span>
+          </div>
+          <pre id="run-output" class="run-output" aria-live="polite"></pre>
+        </div>
+
+        <div class="viewer-with-legend">
+          <div id="planner-viewer" class="viewer" aria-label="3D viewer for planned motion"></div>
+          <aside class="legend" aria-label="Legend">
+            <h4>Legend</h4>
+            <svg class="legend__svg" viewBox="0 0 220 380" xmlns="http://www.w3.org/2000/svg" role="img"
+                 aria-label="Schematic showing the robot's segments, base, and target markers">
+              <!-- Robot backbone tube (vertical, blue, thick) -->
+              <line x1="36" y1="40"  x2="36" y2="320" stroke="#2563eb" stroke-width="12" stroke-linecap="round" />
+
+              <!-- Segment endpoint markers (red) -->
+              <circle cx="36" cy="40"  r="7" fill="#dc2626" />
+              <circle cx="36" cy="133" r="7" fill="#dc2626" />
+              <circle cx="36" cy="226" r="7" fill="#dc2626" />
+
+              <!-- Base position marker (green) and a small SE(3) frame (X red →, Z blue ↑) -->
+              <circle cx="36" cy="320" r="8" fill="#16a34a" />
+              <!-- X axis (red, →) -->
+              <line   x1="36" y1="320" x2="64" y2="320" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round" />
+              <polygon points="68,320 60,316 60,324" fill="#dc2626" />
+              <text   x="72"  y="324"  class="legend__axis-label">X</text>
+              <!-- Z axis (blue, ↑) -->
+              <line   x1="36" y1="320" x2="36" y2="294" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" />
+              <polygon points="36,290 32,298 40,298" fill="#2563eb" />
+              <text   x="14"  y="298"  class="legend__axis-label">Z</text>
+
+              <!-- Labels -->
+              <text x="80"  y="44"  class="legend__label">Tip (Seg 3 end)</text>
+              <text x="80"  y="137" class="legend__label">Seg 2 end</text>
+              <text x="80"  y="230" class="legend__label">Seg 1 end</text>
+              <text x="80"  y="324" class="legend__label">Base</text>
+              <text x="80"  y="342" class="legend__sublabel">SE(3) base frame</text>
+            </svg>
+            <ul class="legend__extras">
+              <li><span class="swatch swatch--robot"></span>Robot backbone (Seg 1 → 2 → 3)</li>
+              <li><span class="swatch swatch--target"></span>Target path</li>
+              <li><span class="swatch swatch--target-tip"></span>Current target waypoint</li>
+              <li><span class="swatch swatch--wp-idle"></span>Waypoint, not yet reached</li>
+              <li><span class="swatch swatch--wp-active"></span>Waypoint reached</li>
+            </ul>
+          </aside>
+        </div>
+        <div id="playback" class="playback">
+          <button id="play-btn" type="button" aria-label="Play / pause" title="Play / pause">▶</button>
+          <input id="frame-slider" type="range" min="0" max="0" value="0" disabled />
+          <span id="frame-readout" class="frame-readout">— / —</span>
+        </div>
+      </div>
+
+      <div id="results" class="results" hidden>
+        <h3>Run results</h3>
+        <div class="metrics">
+          <div class="metric"><span class="metric-label">Tip deviation (mean / max)</span><span class="metric-value" data-metric="tip">—</span></div>
+          <div class="metric"><span class="metric-label">Shape deviation (mean / max)</span><span class="metric-value" data-metric="shape">—</span></div>
+          <div class="metric"><span class="metric-label">Library load + planner build</span><span class="metric-value" data-metric="setup-time">—</span></div>
+          <div class="metric"><span class="metric-label">Plan + interpolate</span><span class="metric-value" data-metric="plan-time">—</span></div>
+          <div class="metric"><span class="metric-label">Frames produced</span><span class="metric-value" data-metric="frames">—</span></div>
+        </div>
       </div>
 
       <details class="runtime-log-wrapper">
-        <summary>Runtime log</summary>
+        <summary>Full runtime log</summary>
         <pre id="runtime-log" class="runtime-log"></pre>
       </details>
     </section>
+
+    <!-- Toast -->
+    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
 
     <section id="bibtex">
       <h2>Citation</h2>
@@ -91,7 +250,7 @@
     <footer>
       <p>
         Source on
-        <a href="https://github.com/">GitHub</a>.
+        <a href="https://github.com/Nicholas-Baldassini/Sampling-Based-Follow-the-Leader-Motion-Planning-for-Manipulator-Mounted-Continuum-Robots">GitHub</a>.
       </p>
     </footer>
   </main>

@@ -68,8 +68,12 @@ class GeneralMotionPlanner:
         self.custom_shape_lib_path = custom_shape_lib_path
 
         self.verbose = verbose
+        # multiprocessing isn't available under Emscripten/Pyodide; fall back to
+        # serial generation transparently. No effect on native runs.
+        if sys.platform == "emscripten" and parallel_lib_gen:
+            parallel_lib_gen = False
         self.parallel_lib_gen = parallel_lib_gen
-        
+
         if self.num_threads <= 0:
             import os
             self.num_threads = os.cpu_count()
@@ -147,7 +151,6 @@ class GeneralMotionPlanner:
             print(f"WARNING: Found {len(duplicates)} duplicate shapes in library (out of {len(self.shape_library)} total)")
             print(f"  First few duplicates:")
             for dup in duplicates[:5]:
-                breakpoint()
                 print(f"    Shape {dup['index']} is duplicate of shape {dup['duplicate_of']}")
         else:
             pass

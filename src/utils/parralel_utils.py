@@ -1,4 +1,7 @@
-from multiprocessing import Pool, Queue, shared_memory, get_context
+# NOTE: `multiprocessing` is imported lazily inside the functions that use it so
+# that this module remains importable on Emscripten/Pyodide (which has no
+# multiprocessing). Native behaviour is unchanged — the imports happen the first
+# time a multiprocessing-backed function is called.
 import numpy as np
 import time
 import src.utils.CurveUtils as CurveUtils
@@ -12,10 +15,11 @@ _GLOBAL_NUM_THREADS = None
 
 def _find_min_shape_eval_worker(args):
     """
-    Worker wrapper for pool.map to avoid Queue pickling 
+    Worker wrapper for pool.map to avoid Queue pickling
     and slow down from starting processes so many times over and over again.
     """
-    
+    from multiprocessing import shared_memory
+
     func, shm_names, shapes, dtypes, start_idx, end_idx, other_args = args
 
     shm_list = [shared_memory.SharedMemory(name=n) for n in shm_names]
@@ -66,10 +70,12 @@ def get_global_pool(num_threads):
     """
     Initializes or reuses a global process pool.
     Uses fork context for faster startup on Unix.
-    
+
     This may be slow the first time but since we call the shape evaluator so many times,
     every suceeding call will be faster as we dont have to recreate the process pool each time.
     """
+    from multiprocessing import get_context
+
     global _GLOBAL_POOL, _GLOBAL_NUM_THREADS
     if _GLOBAL_POOL is None or _GLOBAL_NUM_THREADS != num_threads:
         #ctx = get_context("fork") if hasattr(get_context("fork"), "Pool") else multiprocessing
@@ -83,7 +89,8 @@ def get_global_pool(num_threads):
 
 
 def parallel_find_min_shape_eval(func, shape_lib, other_args, num_threads=12):
-        
+    from multiprocessing import shared_memory
+
     pool = get_global_pool(num_threads)
 
     clark_coords = np.stack([s['clark_coords'] for s in shape_lib])

@@ -11,7 +11,10 @@ import src.utils.CurveUtils as CurveUtils
 import json
 import numpy as np
 from scipy.spatial.transform import Rotation
-import matplotlib.pyplot as plt
+# NOTE: matplotlib is imported lazily inside the methods that use it
+# (graph_alignment_step, compute_shape_deviation_closest with plot_deviation=True).
+# Native behaviour is unchanged; this lets the module import on Emscripten/Pyodide
+# without pulling matplotlib at module load.
 from scipy.spatial.transform import Rotation as SciRot
 
 class GeneralPathFollower():
@@ -99,6 +102,7 @@ class GeneralPathFollower():
             new_rob_curve: New robot curve points (Nx3 array)
             active_waypoints: Active waypoints to display (Nx3 array)
         """
+        import matplotlib.pyplot as plt
         fig = plt.figure(figsize=(16, 7))
         
         # Left plot: SE3 coordinate frames
