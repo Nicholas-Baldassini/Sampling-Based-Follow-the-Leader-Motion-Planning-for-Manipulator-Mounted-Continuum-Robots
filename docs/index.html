@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sampling-Based FTL Motion Planner</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Pyodide must be loaded before app.js so that `loadPyodide` is on `window`
+       by the time our (deferred, type="module") app script runs. -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.29.3/full/pyodide.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header class="paper-header">
+      <h1>Sampling-Based Follow-the-Leader Motion Planning<br />for Manipulator-Mounted Continuum Robots</h1>
+      <p class="authors">
+        Chengnan Shentu, Nicholas Baldassini, Oluwagbotemi&nbsp;D.&nbsp;Iseoluwa,
+        Radian Gondokaryono, Jessica Burgner-Kahrs
+      </p>
+      <p class="venue">RSS&nbsp;2026</p>
+      <nav class="paper-links">
+        <a href="#" class="btn" aria-disabled="true">Paper (PDF)</a>
+        <a href="https://github.com/" class="btn">GitHub</a>
+        <a href="#demo" class="btn">Try it</a>
+      </nav>
+    </header>
+
+    <figure class="teaser">
+      <img src="assets/teaser.png" alt="Overview of the FTL planner: offline shape library, base pose alignment, global shape search, and local interpolation." />
+      <figcaption>
+        Offline library &rarr; base pose alignment &rarr; global shape search &rarr; local interpolation.
+      </figcaption>
+    </figure>
+
+    <section id="abstract">
+      <h2>Abstract</h2>
+      <p>
+        Follow-the-leader (FTL) motion exploits the unique morphology of continuum robots (CRs)
+        to navigate confined spaces by having the body retrace the path of the tip. While
+        extensively studied, existing FTL methods typically assume a fixed base or a single
+        degree-of-freedom insertion mechanism, limiting their applicability to practical systems
+        in which CRs are mounted on robotic manipulators with full six-degree-of-freedom pose
+        control. This paper presents a sampling-based motion planner for FTL motion of
+        manipulator-mounted CRs that jointly considers robot configuration and base pose. The
+        key idea is to decouple global shape search from base pose determination by computing
+        the base pose through a closed-form geometric construction, thereby avoiding iterative
+        optimization during online planning. The approach supports general forward models and
+        enables efficient planning by shifting the majority of computation offline. We establish
+        theoretical guarantees including resolution completeness of the shape search and exact
+        tip tracking throughout waypoint traversal and interpolation. Experiments on 120
+        simulated paths over 3 test classes demonstrate 0% tip error and 1.9% mean shape
+        deviation (w.r.t. robot length) at 100% success rate. We validate the practicality of
+        our approach on a 6-DOF tendon-driven CR mounted on a serial manipulator.
+      </p>
+    </section>
+
+    <section id="demo">
+      <h2>Try the planner</h2>
+      <p class="lead">
+        Drag the control points to define a target curve, pick a planner, and the
+        sampling-based planner will run live in your browser via Pyodide. Three.js
+        renders the resulting motion in 3D.
+      </p>
+
+      <div id="runtime-status" class="runtime-status loading" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="runtime-status__text">Loading Python runtime…</span>
+      </div>
+
+      <div id="demo-panel" class="demo-panel" hidden>
+        <p>Demo controls and 3D viewer will appear here in the next iteration.</p>
+      </div>
+
+      <details class="runtime-log-wrapper">
+        <summary>Runtime log</summary>
+        <pre id="runtime-log" class="runtime-log"></pre>
+      </details>
+    </section>
+
+    <section id="bibtex">
+      <h2>Citation</h2>
+      <pre class="bibtex"><code>@inproceedings{shentu2026samplingftl,
+  title  = {Sampling-Based Follow-the-Leader Motion Planning for Manipulator-Mounted Continuum Robots},
+  author = {Shentu, Chengnan and Baldassini, Nicholas and Iseoluwa, Oluwagbotemi D.
+            and Gondokaryono, Radian and Burgner-Kahrs, Jessica},
+  booktitle = {Robotics: Science and Systems},
+  year   = {2026}
+}</code></pre>
+    </section>
+
+    <footer>
+      <p>
+        Source on
+        <a href="https://github.com/">GitHub</a>.
+      </p>
+    </footer>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

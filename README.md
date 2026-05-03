@@ -2,11 +2,11 @@
 
 ![FTL planner overview](src/media/ftl_teaser.png)
 
-Open source implementation of the paper *Sampling-Based Follow-the-Leader Motion Planning for Manipulator-Mounted Continuum Robots*.
+Open source implementation of the paper *Sampling-Based Follow-the-Leader Motion Planning for Manipulator-Mounted Continuum Robots* (Insert link and in repo description -->).
 
 ### Abstract
 
-```
+```bash
 Follow-the-leader (FTL) motion exploits the unique morphology of continuum robots (CRs) to navigate confined spaces by having the body retrace the path of the tip. While extensively studied, existing FTL methods typically assume a fixed base or a single degree-of-freedom insertion mechanism, limiting their applicability to practical systems in which CRs are mounted on robotic manipulators with full six-degree-of-freedom pose control. This paper presents a sampling-based motion planner for FTL motion of manipulator-mounted CRs that jointly considers robot configuration and base pose. The key idea is to decouple global shape search from base pose determination by computing the base pose through a closed-form geometric construction, thereby avoiding iterative optimization during online planning. The approach supports general forward models and enables efficient planning by shifting the majority of computation offline. We establish theoretical guarantees including resolution completeness of the shape search and exact tip tracking throughout waypoint traversal and interpolation. Experiments on 120 simulated paths over 3 test classes demonstrate 0% tip error and 1.9% mean shape deviation (w.r.t. robot length) at 100% success rate. We validate the practicality of our approach on a 6-DOF tendon-driven CR mounted on a serial manipulator.
 ```
 
@@ -33,7 +33,7 @@ Tested with Python 3.11
 
 ## Quick run
 
-End-to-end demo on a Bezier curve with the threshold-clustered planner and a 5,000-shape library:
+End-to-end demo on a Bezier curve with the threshold-clustered planner and a 15,000-shape library:
 
 ```bash
 python run_example.py
@@ -180,8 +180,6 @@ waypoints = generator.sample_from_robot_shape(
     np.array([0, 0.1, 0, 0.2, -0.3, -0.1]), num_waypoints=10
 )
 ```
-
-For batch evaluation against a *library* of randomly generated paths, see [`generate_task_library`](src/PathGenerators/PathGenerator.py) and the JSON config at [`Evaluations/MotionPlannerVsCurveType/CurveLibraryConfig.json`](Evaluations/MotionPlannerVsCurveType/CurveLibraryConfig.json) for the schema (start/end with mean+variance, count, num_waypoints, type).
 
 ## Solving for a motion plan
 
