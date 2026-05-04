@@ -36,55 +36,64 @@ class PathVisualizer:
     
     def _compute_fixed_limits(self, waypoints: np.ndarray, history: List[dict] = None):
         """
-        Compute fixed axis limits based on all waypoints and robot data.
-        
-        Args:
-            waypoints: All waypoints in the path
-            history: Optional history to include robot shape bounds
+        Compute a single cubic bounding box covering all waypoints, robot
+        shapes, and base positions, so X/Y/Z share the same scale and the
+        scene is not skewed.
         """
-        # Start with waypoint bounds
         all_points = [waypoints]
-        
-        # Add robot shape bounds if history is available
+
         if history:
             for step_info in history:
                 shape_points = step_info['shape_points']
                 base_position = step_info.get('base_position', np.array([0.0, 0.0, -self.robot.robot_length]))
                 all_points.extend([shape_points, base_position.reshape(1, 3)])
-        
-        # Combine all points
+
         all_points = np.vstack(all_points)
-        
-        # Calculate bounds with padding
-        min_vals = np.min(all_points, axis=0) - 0.5
-        max_vals = np.max(all_points, axis=0) + 0.5
-        
+
+        min_vals = np.min(all_points, axis=0)
+        max_vals = np.max(all_points, axis=0)
+        center = 0.5 * (min_vals + max_vals)
+        half_range = 0.5 * float(np.max(max_vals - min_vals))
+        # Pad so robot/markers don't sit on the box edge
+        half_range *= 1.15
+
         if self.use_2d:
-            # For 2D mode, only use X and Z dimensions
             self.fixed_limits = {
-                'xlim': (min_vals[0], max_vals[0]),
-                'zlim': (min_vals[2], max_vals[2])
+                'xlim': (center[0] - half_range, center[0] + half_range),
+                'zlim': (center[2] - half_range, center[2] + half_range),
             }
         else:
             self.fixed_limits = {
-                'xlim': (4*min_vals[0], 4*max_vals[0]),
-                'ylim': (4*min_vals[1], 4*max_vals[1]),
-                'zlim': (min_vals[2], max_vals[2])
+                'xlim': (center[0] - half_range, center[0] + half_range),
+                'ylim': (center[1] - half_range, center[1] + half_range),
+                'zlim': (center[2] - half_range, center[2] + half_range),
             }
-    
+
     def _set_fixed_view_limits(self):
-        """Set the fixed view limits."""
-        if self.fixed_limits:
-            self.ax.set_xlim(self.fixed_limits['xlim'])
-            if self.use_2d:
-                self.ax.set_ylim(self.fixed_limits['zlim'])  # Y axis shows Z values in 2D
-            else:
-                #return
-                self.ax.set_ylim(self.fixed_limits['zlim'])
-                self.ax.set_xlim(self.fixed_limits['zlim'])
-                self.ax.set_zlim(self.fixed_limits['zlim'])
-                # Set view angle - rotate by 90 degrees for better visibility
-                #self.ax.view_init(elev=20, azim=135)
+        """Re-apply per-frame state that ax.clear() wipes: limits and aspect.
+        View angle is intentionally NOT touched here so user pans/rotations
+        persist across frames.
+        """
+        if not self.fixed_limits:
+            return
+
+        self.ax.set_xlim(self.fixed_limits['xlim'])
+        if self.use_2d:
+            self.ax.set_ylim(self.fixed_limits['zlim'])  # Y axis shows Z values in 2D
+            self.ax.set_aspect('equal', adjustable='box')
+        else:
+            self.ax.set_ylim(self.fixed_limits['ylim'])
+            self.ax.set_zlim(self.fixed_limits['zlim'])
+            try:
+                self.ax.set_box_aspect((1, 1, 1))
+            except AttributeError:
+                pass
+
+    def _init_view_angle(self):
+        """Set the initial viewing angle once, at animation start only."""
+        if self.use_2d:
+            return
+        self.ax.view_init(elev=25, azim=-60)
     
     
     def plot_history(self, history: List[dict], waypoints: np.ndarray, 
@@ -114,7 +123,8 @@ class PathVisualizer:
 
         self.fig = plt.figure(figsize=(12, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
-        
+        self._init_view_angle()
+
         # Remove all axis elements for 3D plots
         # self.ax.axis('off')  # Turn off the axis on the 3D axes object
         # self.ax.grid(False)
@@ -147,8 +157,12 @@ class PathVisualizer:
         # self.ax.set_zlabel('')
 
         def animate(frame):
+            # Preserve any view angle the user set by dragging — ax.clear()
+            # would otherwise reset it to matplotlib's default each frame.
+            elev, azim = self.ax.elev, self.ax.azim
             self.ax.clear()
-            
+            self.ax.view_init(elev=elev, azim=azim)
+
             step_info = history[frame]
             shape_points = step_info['shape_points']
             endpoints = step_info['endpoints']
@@ -335,7 +349,11 @@ class PathVisualizer:
             ax_main.set_xlim(self.fixed_limits['xlim'])
             ax_main.set_ylim(self.fixed_limits['ylim'])
             ax_main.set_zlim(self.fixed_limits['zlim'])
-        ax_main.view_init(elev=20, azim=135)
+            try:
+                ax_main.set_box_aspect((1, 1, 1))
+            except AttributeError:
+                pass
+        ax_main.view_init(elev=25, azim=-60)
         
         # Metrics plots
         steps = [step_info['step'] for step_info in history]
@@ -375,7 +393,11 @@ class PathVisualizer:
             ax2.set_xlim(self.fixed_limits['xlim'])
             ax2.set_ylim(self.fixed_limits['ylim'])
             ax2.set_zlim(self.fixed_limits['zlim'])
-        ax2.view_init(elev=20, azim=135)
+            try:
+                ax2.set_box_aspect((1, 1, 1))
+            except AttributeError:
+                pass
+        ax2.view_init(elev=25, azim=-60)
         
         # Clark coordinates evolution
         ax3 = fig.add_subplot(224)
@@ -391,40 +413,3 @@ class PathVisualizer:
         plt.tight_layout()
         plt.show()
 
-
-# def create_demo_visualizer():
-#     """Create a demo visualizer."""
-#     # Create robot
-#     robot = TDCR(
-#         num_segments=3,
-#         segment_length=[1.0, 1.0, 1.0],
-#         tendon_offset=[0.1, 0.1, 0.1],
-#         points_resolution=0.05
-#     )
-    
-#     # Create visualizer
-#     visualizer = PathVisualizer(robot)
-    
-#     return visualizer
-
-
-# if __name__ == "__main__":
-#     # Test the visualizer
-#     from src.task_generator import create_demo_target_paths
-#     from src.path_follower import create_demo_path_follower
-    
-#     # Create demo components
-#     target_paths = create_demo_target_paths()
-#     follower = create_demo_path_follower()
-#     visualizer = create_demo_visualizer()
-    
-#     # Test with a simple path
-#     test_path = target_paths["curved"]
-#     print(f"Following path with {len(test_path)} waypoints")
-    
-#     history = follower.follow_path(test_path)
-    
-#     # Create summary plot
-#     visualizer.create_summary_plot(history, test_path)
-    
-#     print("Visualization completed!") 

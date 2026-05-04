@@ -70,6 +70,19 @@ a:hover { text-decoration: underline; }
   text-decoration: none;
 }
 .venue       { margin: 0 0 0.6rem; color: var(--fg-muted); font-style: italic; }
+.equal-mark {
+  font-weight: 600;
+  color: var(--fg);
+  font-size: 0.8em;
+  margin-left: 0.05em;
+}
+.equal-contribution {
+  margin: 0 0 0.9rem;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+.equal-contribution .equal-mark { font-style: normal; }
 .affiliation {
   margin: 0 0 1.25rem;
   display: flex;
